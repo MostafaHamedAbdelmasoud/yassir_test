@@ -1,6 +1,9 @@
 import { AirQualityService } from './air-quality.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { AirQualityController } from './air-quality.controller';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { CoordinatesDto } from './dto/coordinates.dto';
+import { plainToInstance } from 'class-transformer';
 
 describe('AirQualityController', () => {
   let controller: AirQualityController;
@@ -25,9 +28,16 @@ describe('AirQualityController', () => {
   });
 
   describe('getNearestCityAirQuality', () => {
-    it('should return error for invalid lat/lon', async () => {
-      const result = await controller.getNearestCityAirQuality('abc', 'def');
-      expect(result).toEqual({ error: 'Invalid latitude or longitude' });
+    it('should throw BadRequestException for invalid lat/lon', async () => {
+      const pipe = new ValidationPipe({ transform: true });
+      const invalidDto = plainToInstance(CoordinatesDto, {
+        lat: 'invalid',
+        lon: 2.35,
+      });
+    
+      await expect(
+        pipe.transform(invalidDto, { type: 'query', metatype: CoordinatesDto }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should call service and return air quality for valid lat/lon', async () => {
@@ -36,7 +46,8 @@ describe('AirQualityController', () => {
         pollution: { aqius: 42 },
       };
       (service.fetchAndSaveAirQuality as jest.Mock).mockResolvedValue(mockAirQuality);
-      const result = await controller.getNearestCityAirQuality('1.23', '4.56');
+    
+      const result = await controller.getNearestCityAirQuality({ lat: 1.23, lon: 4.56 });
       expect(service.fetchAndSaveAirQuality).toHaveBeenCalledWith(1.23, 4.56);
       expect(result).toBe(mockAirQuality);
     });
